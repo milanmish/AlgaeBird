@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Algae Bird V1</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>Algae Guard V1</h1>
+
+    <button id="scriptRun">Click to Analyze</button>
+
+    <div id="outputSection">
+        <h2>BOWs with Algae Bloom</h2>
+        <div id="pabList"></div>
+
+        <h2>BOWs without Algae Bloom</h2>
+        <div id="npabList"></div>
+
+        <label for="brightnessSlider">Brightness</label>
+        <input type="range" id="brightnessSlider" min="0" max="300" value="150" step="1">
+    </div>
+
+    <div id="modal">
+        <img id="modalImage" alt="Enlarged Image">
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        document.getElementById('scriptRun').addEventListener('click', () => {
+            const scriptRunButton = document.getElementById('scriptRun');
+            scriptRunButton.textContent = 'Analyzing...';
+
+            // Simulate the analysis process (replace this with your actual analysis logic)
+            setTimeout(() => {
+                // Once the analysis is complete, reset the button text
+                scriptRunButton.textContent = 'Click to Analyze';
+            }, 3000); // Change 3000 to the duration of your analysis process in milliseconds
+
+            ipcRenderer.send('script-Run');
+        });
+
+        ipcRenderer.on('python-script-output', (event, result) => {
+            const pabList = document.getElementById('pabList');
+            const npabList = document.getElementById('npabList');
+
+            // Clear previous content
+            pabList.innerHTML = '';
+            npabList.innerHTML = '';
+
+            const { output, error } = result;
+
+            // Display Python script output
+            if (output) {
+                console.log(`Python Script Output: ${output}`);
+            }
+
+            // Display Python script error
+            if (error) {
+                console.error(`Error in Python Script: ${error}`);
+            }
+
+            // Parse the output to display in HTML
+            const outputLines = output.split('\n');
+            outputLines.forEach(line => {
+                const container = document.createElement('div');
+
+                // Extract the file path from the output line
+                const filePathMatch = line.match(/(?<=Predicted class likely (?:has|does not have) an algae bloom )(.+)/);
+
+                if (filePathMatch) {
+                    const imagePath = filePathMatch[1];
+
+                    // Determine whether the output belongs to pab or npab and append to the respective list
+                    if (line.includes('Predicted class likely has an algae bloom')) {
+                        const imageButton = createImageButton(imagePath);
+                        pabList.appendChild(imageButton);
+                    } else if (line.includes('Predicted class likely does not have an algae bloom')) {
+                        const imageButton = createImageButton(imagePath);
+                        npabList.appendChild(imageButton);
+                    }
+                }
+            });
+        });
+
+        function createImageButton(imagePath) {
+            const container = document.createElement('div');
+
+            //container.classList.add('image-button'); // Add the 'image-button' class
+
+            const filename = extractFilename(imagePath);
+
+            const button = document.createElement('button');
+            button.classList.add('image-button');
+            button.textContent = filename;
+            button.addEventListener('click', () => openModal(imagePath));
+
+            container.appendChild(button);
+
+            return container;
+        }
+
+
+        function extractFilename(path) {
+            const parts = path.split(/[\\\/]/);
+            return parts[parts.length - 1];
+        }
+
+        function openModal(imagePath) {
+            const modal = document.getElementById('modal');
+            const modalImage = document.getElementById('modalImage');
+            const brightnessSlider = document.getElementById('brightnessSlider');
+
+            // Set the image source
+            modalImage.src = `file://${imagePath}`;
+
+            // Add brightness adjustment using the slider value
+            brightnessSlider.addEventListener('input', () => {
+                const brightnessValue = brightnessSlider.value;
+                modalImage.style.filter = `brightness(${brightnessValue}%)`;
+            });
+
+            // Display the modal
+            modal.style.display = 'flex';
+        }
+
+        window.onclick = function (event) {
+            const modal = document.getElementById('modal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        };
+    </script>
+</body>
+</html>
